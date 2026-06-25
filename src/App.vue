@@ -10,35 +10,71 @@
     <!-- Header -->
     <header class="app-header">
       <h1 class="app-title">
-        <el-icon class="title-icon"><MagicStick /></el-icon>
-        AI 图片生成器
+        <el-icon class="title-icon">
+          <component :is="appMode === 'image' ? 'MagicStick' : 'VideoCamera'" />
+        </el-icon>
+        {{ appMode === 'image' ? 'AI 图片生成器' : 'AI 视频生成器' }}
       </h1>
       <p class="app-subtitle">Powered by Agnes AI</p>
     </header>
 
-    <!-- Mode Bar -->
-    <ModeBar />
+    <!-- Top-level Mode Tabs: Image / Video -->
+    <div class="top-nav">
+      <div class="top-nav-tabs">
+        <div
+          class="nav-tab"
+          :class="{ active: appMode === 'image' }"
+          @click="appMode = 'image'"
+        >
+          <el-icon><Picture /></el-icon>
+          <span>图片生成</span>
+        </div>
+        <div
+          class="nav-tab"
+          :class="{ active: appMode === 'video' }"
+          @click="appMode = 'video'"
+        >
+          <el-icon><VideoCamera /></el-icon>
+          <span>视频生成</span>
+        </div>
+      </div>
+    </div>
 
     <!-- Main Content -->
     <main class="main-content">
-      <!-- Input Area -->
-      <section class="card">
-        <InputArea
-          @generate="onGenerate"
-        />
-      </section>
+      <!-- Image Generation Mode -->
+      <template v-if="appMode === 'image'">
+        <ModeBar />
+        <section class="card">
+          <InputArea @generate="onGenerate" />
+        </section>
+        <section class="card">
+          <ResultArea
+            :loading="loading"
+            :error="error"
+            :current-result="currentResult"
+          />
+        </section>
+        <HistorySection />
+      </template>
 
-      <!-- Result Area -->
-      <section class="card">
-        <ResultArea
-          :loading="loading"
-          :error="error"
-          :current-result="currentResult"
-        />
-      </section>
-
-      <!-- History -->
-      <HistorySection />
+      <!-- Video Generation Mode -->
+      <template v-else>
+        <VideoModeBar />
+        <section class="card">
+          <VideoInputArea @generate="onVideoGenerate" />
+        </section>
+        <section class="card">
+          <VideoResultArea
+            :polling="videoPolling"
+            :progress="videoProgress"
+            :status="videoStatus"
+            :current-video-url="videoCurrentUrl"
+            :error="videoError"
+          />
+        </section>
+        <VideoHistorySection />
+      </template>
     </main>
 
     <!-- Config Panel -->
@@ -47,32 +83,60 @@
 </template>
 
 <script setup>
-import { ref, watch, onMounted } from 'vue'
+import { ref, watch, onMounted, computed } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useAppStore } from './store'
+import { buildVideoRequestBody } from './utils/videoApi'
+
+// Components
 import ModeBar from './components/ModeBar.vue'
 import InputArea from './components/InputArea.vue'
 import ResultArea from './components/ResultArea.vue'
 import HistorySection from './components/HistorySection.vue'
 import ConfigPanel from './components/ConfigPanel.vue'
+import VideoModeBar from './components/VideoModeBar.vue'
+import VideoInputArea from './components/VideoInputArea.vue'
+import VideoResultArea from './components/VideoResultArea.vue'
+import VideoHistorySection from './components/VideoHistorySection.vue'
 
 const store = useAppStore()
 
+// App mode: 'image' | 'video'
+const appMode = computed({
+  get: () => store.appMode,
+  set: (val) => { store.appMode = val }
+})
+
+// ===================== Image Generation =====================
 const loading = ref(false)
 const error = ref('')
 const currentResult = ref('')
 
-// Persist config to localStorage
+// Persist image config
 watch(
   () => ({ url: store.apiUrl, key: store.apiKey, fmt: store.responseFormat }),
-  (val) => {
-    localStorage.setItem('ai-image-config', JSON.stringify(val))
-  },
+  (val) => { localStorage.setItem('ai-image-config', JSON.stringify(val)) },
   { deep: true }
 )
 
-// Load persisted config on mount
+// ===================== Video Generation =====================
+const videoPolling = ref(false)
+const videoProgress = ref(0)
+const videoStatus = ref('')
+const videoCurrentUrl = ref('')
+const videoError = ref('')
+let videoPollingTimer = null
+
+// Persist video config
+watch(
+  () => ({ url: store.videoBaseUrl, key: store.apiKey, fmt: store.responseFormat }),
+  (val) => { localStorage.setItem('ai-video-config', JSON.stringify(val)) },
+  { deep: true }
+)
+
+// ===================== Shared: Load on mount =====================
 onMounted(() => {
+  // Load image config
   try {
     const saved = JSON.parse(localStorage.getItem('ai-image-config'))
     if (saved) {
@@ -82,31 +146,44 @@ onMounted(() => {
     }
   } catch {}
 
-  // Load history from localStorage
-  const hist = localStorage.getItem('ai-image-history')
-  if (hist) {
-    try { store.history = JSON.parse(hist) } catch {}
+  // Load video config
+  try {
+    const saved = JSON.parse(localStorage.getItem('ai-video-config'))
+    if (saved) {
+      if (saved.url) store.videoBaseUrl = saved.url
+      if (saved.key) store.apiKey = saved.key
+      if (saved.fmt) store.responseFormat = saved.fmt
+    }
+  } catch {}
+
+  // Load image history
+  const imgHist = localStorage.getItem('ai-image-history')
+  if (imgHist) {
+    try { store.history = JSON.parse(imgHist) } catch {}
+  }
+
+  // Load video history
+  const vidHist = localStorage.getItem('ai-video-history')
+  if (vidHist) {
+    try { store.videoHistory = JSON.parse(vidHist) } catch {}
   }
 })
 
-// Watch history changes for persistence
+// Persist image history
 watch(
   () => store.history,
   (val) => {
-    try {
-      localStorage.setItem('ai-image-history', JSON.stringify(val.slice(0, 5)))
-    } catch {}
+    try { localStorage.setItem('ai-image-history', JSON.stringify(val.slice(0, 5))) } catch {}
   },
   { deep: true }
 )
 
+// ===================== Image Generate Handler =====================
 async function onGenerate(data) {
-  // Reset
   error.value = ''
   currentResult.value = ''
   loading.value = true
 
-  // Validate API key
   if (!store.apiKey.trim()) {
     error.value = '请先在配置中心（右上角⚙️）填入你的 API Key'
     loading.value = false
@@ -114,31 +191,24 @@ async function onGenerate(data) {
   }
 
   try {
-    // Build request body
     const requestBody = {
       model: 'agnes-image-2.1-flash',
       prompt: data.prompt,
       n: 1,
-      size: store.selectedSize
-    }
-
-    // Build extra_body
-    const extraBody = {
-      response_format: store.responseFormat === 'b64_json' ? 'b64_json' : 'url'
-    }
-
-    // Image-to-image: attach image source
-    if (store.mode === 'img2img') {
-      if (data.localImage) {
-        extraBody.image = [data.localImage]
-      } else if (data.imageUrl) {
-        extraBody.image = [data.imageUrl]
+      size: store.selectedSize,
+      extra_body: {
+        response_format: store.responseFormat === 'b64_json' ? 'b64_json' : 'url'
       }
     }
 
-    requestBody.extra_body = extraBody
+    if (store.mode === 'img2img') {
+      if (data.localImage) {
+        requestBody.extra_body.image = [data.localImage]
+      } else if (data.imageUrl) {
+        requestBody.extra_body.image = [data.imageUrl]
+      }
+    }
 
-    // Send request
     const response = await fetch(store.apiUrl, {
       method: 'POST',
       headers: {
@@ -149,14 +219,8 @@ async function onGenerate(data) {
     })
 
     if (!response.ok) {
-      if (response.status === 401) {
-        throw new Error('API Key 无效或已过期，请在配置中心更新')
-      }
-      if (response.status === 429) {
-        throw new Error('请求过于频繁，请稍后再试')
-      }
-      const errText = await response.text().catch(() => '')
-      throw new Error(`请求失败 (${response.status}): ${errText || response.statusText}`)
+      await handleHttpError(response)
+      return
     }
 
     const result = await response.json()
@@ -166,9 +230,8 @@ async function onGenerate(data) {
     }
 
     const item = result.data[0]
-
-    // Build display source
     let displaySrc = ''
+
     if (store.responseFormat === 'b64_json' && item.b64_json) {
       displaySrc = `data:image/png;base64,${item.b64_json}`
     } else if (item.url) {
@@ -178,14 +241,7 @@ async function onGenerate(data) {
     }
 
     currentResult.value = displaySrc
-
-    // Add to history
-    store.addToHistory({
-      prompt: data.prompt,
-      displaySrc,
-      timestamp: Date.now()
-    })
-
+    store.addToHistory({ prompt: data.prompt, displaySrc, timestamp: Date.now() })
     ElMessage.success('图片生成成功！')
   } catch (err) {
     error.value = err.message || '未知错误，请稍后重试'
@@ -193,6 +249,166 @@ async function onGenerate(data) {
   } finally {
     loading.value = false
   }
+}
+
+// ===================== Video Generate Handler =====================
+async function onVideoGenerate(data) {
+  videoError.value = ''
+  videoCurrentUrl.value = ''
+  videoProgress.value = 0
+  videoStatus.value = '提交中...'
+  videoPolling.value = true
+
+  if (!store.apiKey.trim()) {
+    videoError.value = '请先在配置中心（右上角⚙️）填入你的 API Key'
+    videoPolling.value = false
+    return
+  }
+
+  try {
+    // Build request body
+    const body = buildVideoRequestBody(store.videoMode, data, store)
+
+    // Determine video API URL
+    const base = store.videoBaseUrl.replace(/\/+$/, '')
+    const videoUrl = `${base}/v1/videos`
+
+    const response = await fetch(videoUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${store.apiKey.trim()}`
+      },
+      body: JSON.stringify(body)
+    })
+
+    if (!response.ok) {
+      await handleHttpError(response)
+      videoPolling.value = false
+      return
+    }
+
+    const result = await response.json()
+
+    // Extract video_id
+    const videoId = result.video_id || result.task_id || result.id
+    if (!videoId) {
+      throw new Error('未获取到视频任务 ID，请检查 API 响应')
+    }
+
+    // Start polling
+    startVideoPolling(videoId)
+  } catch (err) {
+    videoError.value = err.message || '未知错误，请稍后重试'
+    videoPolling.value = false
+    ElMessage.error(videoError.value)
+  }
+}
+
+function startVideoPolling(videoId) {
+  // Clear any existing timer
+  if (videoPollingTimer) clearInterval(videoPollingTimer)
+
+  videoStatus.value = '排队中...'
+  videoProgress.value = 0
+
+  videoPollingTimer = setInterval(async () => {
+    try {
+      const base = store.videoBaseUrl.replace(/\/+$/, '')
+      const pollUrl = `${base}/agnesapi?video_id=${videoId}&model_name=agnes-video-v2.0`
+
+      const response = await fetch(pollUrl, {
+        headers: {
+          'Authorization': `Bearer ${store.apiKey.trim()}`
+        }
+      })
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          throw new Error('API Key 无效或已过期')
+        }
+        throw new Error(`轮询失败 (${response.status})`)
+      }
+
+      const data = await response.json()
+
+      // Update progress
+      if (data.progress !== undefined && data.progress !== null) {
+        videoProgress.value = Math.round(data.progress * 100)
+      }
+
+      // Update status
+      if (data.status) {
+        const statusMap = {
+          queued: '排队中...',
+          in_progress: `生成中 ${videoProgress.value}%`,
+          completed: '已完成！',
+          failed: '生成失败'
+        }
+        videoStatus.value = statusMap[data.status] || data.status
+      }
+
+      // Check completion
+      if (data.status === 'completed' || data.remixed_from_video_id) {
+        stopVideoPolling()
+        videoCurrentUrl.value = data.remixed_from_video_id || data.video_url || ''
+        videoProgress.value = 100
+        videoStatus.value = '已完成！'
+
+        if (!videoCurrentUrl.value) {
+          videoError.value = '视频生成完成但未找到视频链接'
+          ElMessage.error(videoError.value)
+          return
+        }
+
+        // Add to history
+        const durationLabels = { '3': '~3秒', '5': '~5秒', '10': '~10秒', '18': '~18秒' }
+        store.addToVideoHistory({
+          prompt: data.prompt || '',
+          videoUrl: videoCurrentUrl.value,
+          durationLabel: durationLabels[store.videoDuration] || '~5秒',
+          timestamp: Date.now()
+        })
+
+        ElMessage.success('视频生成成功！')
+      }
+
+      // Check failure
+      if (data.status === 'failed' || data.error) {
+        stopVideoPolling()
+        videoError.value = data.error || data.status || '视频生成失败'
+        ElMessage.error(videoError.value)
+      }
+    } catch (err) {
+      stopVideoPolling()
+      videoError.value = err.message || '轮询出错'
+      videoStatus.value = '轮询失败'
+      ElMessage.error(videoError.value)
+    }
+  }, 5000)
+}
+
+function stopVideoPolling() {
+  if (videoPollingTimer) {
+    clearInterval(videoPollingTimer)
+    videoPollingTimer = null
+  }
+  videoPolling.value = false
+}
+
+// Cleanup on page unload
+window.addEventListener('beforeunload', stopVideoPolling)
+
+// ===================== Shared Helpers =====================
+async function handleHttpError(response) {
+  if (response.status === 401) {
+    throw new Error('API Key 无效或已过期，请在配置中心更新')
+  }
+  if (response.status === 429) {
+    throw new Error('请求过于频繁，请稍后再试')
+  }
+  const errText = await response.text().catch(() => '')
+  throw new Error(`请求失败 (${response.status}): ${errText || response.statusText}`)
 }
 </script>
 
@@ -262,7 +478,7 @@ async function onGenerate(data) {
   position: relative;
   z-index: 1;
   text-align: center;
-  padding: 48px 20px 24px;
+  padding: 40px 20px 16px;
 }
 
 .app-title {
@@ -270,7 +486,7 @@ async function onGenerate(data) {
   align-items: center;
   justify-content: center;
   gap: 10px;
-  font-size: 32px;
+  font-size: 28px;
   font-weight: 700;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f472b6 100%);
   -webkit-background-clip: text;
@@ -280,13 +496,62 @@ async function onGenerate(data) {
 }
 
 .title-icon {
-  font-size: 32px;
+  font-size: 28px;
 }
 
 .app-subtitle {
   font-size: 14px;
   color: #999;
-  margin: 6px 0 0;
+  margin: 4px 0 0;
+}
+
+/* Top-level Navigation */
+.top-nav {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  justify-content: center;
+  padding: 0 16px;
+  margin-bottom: 8px;
+}
+
+.top-nav-tabs {
+  display: flex;
+  gap: 8px;
+  background: rgba(255, 255, 255, 0.6);
+  backdrop-filter: blur(12px);
+  border-radius: 14px;
+  padding: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.nav-tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 24px;
+  border-radius: 11px;
+  cursor: pointer;
+  font-size: 15px;
+  font-weight: 500;
+  color: #666;
+  transition: all 0.25s ease;
+  user-select: none;
+}
+
+.nav-tab:hover {
+  color: #333;
+}
+
+.nav-tab.active {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.35);
+}
+
+.nav-tab .el-icon {
+  font-size: 18px;
 }
 
 /* Main */
@@ -314,11 +579,20 @@ async function onGenerate(data) {
 /* Mobile */
 @media (max-width: 640px) {
   .app-header {
-    padding: 36px 16px 20px;
+    padding: 28px 16px 12px;
   }
 
   .app-title {
-    font-size: 26px;
+    font-size: 22px;
+  }
+
+  .nav-tab {
+    padding: 8px 16px;
+    font-size: 13px;
+  }
+
+  .nav-tab .el-icon {
+    font-size: 16px;
   }
 
   .main-content {

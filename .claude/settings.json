@@ -11,7 +11,13 @@
       "Read(//Users/taiegle/**)",
       "Bash(curl -s -H \"Authorization: Bearer $\\(cat ~/.github_token || echo ''\\)\" https://api.github.com/user)",
       "Bash(git add *)",
-      "Bash(git rm *)"
+      "Bash(git rm *)",
+      "Bash(git config *)",
+      "Bash(git commit -m 'feat: AI 图片生成器 - 初始版本 *)",
+      "Bash(ssh -T git@github.com)",
+      "Bash(git push *)",
+      "Bash(git checkout *)",
+      "Bash(git commit -m 'feat: 添加 AI 视频生成模块 *)"
     ],
     "additionalDirectories": [
       "/Users/taiegle/私人开发/code/myAiAPP/.vscode"

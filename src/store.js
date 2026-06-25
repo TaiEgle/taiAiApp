@@ -1,16 +1,20 @@
 import { defineStore } from 'pinia'
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 
 export const useAppStore = defineStore('app', () => {
-  // API Configuration
+  // ========== Top-level navigation ==========
+  const appMode = ref('image') // 'image' | 'video'
+
+  // ========== API Configuration (shared) ==========
   const apiUrl = ref('https://apihub.agnes-ai.com/v1/images/generations')
   const apiKey = ref('')
 
-  // Generation mode: 'txt2img' | 'img2img'
-  const mode = ref('txt2img')
+  // Video-specific base URL
+  const videoBaseUrl = ref('https://apihub.agnes-ai.com')
 
-  // Response format: 'url' | 'b64_json'
-  const responseFormat = ref('url')
+  // ========== Image Generation State ==========
+  const mode = ref('txt2img') // 'txt2img' | 'img2img'
+  const responseFormat = ref('url') // 'url' | 'b64_json'
 
   // Image size presets
   const sizes = [
@@ -23,12 +27,35 @@ export const useAppStore = defineStore('app', () => {
   ]
   const selectedSize = ref('1024x1024')
 
-  // History
+  // Image history
   const history = ref([])
 
-  // Config panel visibility
+  // ========== Video Generation State ==========
+  const videoMode = ref('txt2video') // 'txt2video' | 'img2video' | 'multi-img' | 'keyframes'
+
+  // Video advanced options
+  const videoAspectRatio = ref('16:9')
+  const videoDuration = ref('5')
+  const videoFrameRate = ref(24)
+  const videoSeed = ref(null)
+  const videoNegativePrompt = ref('')
+
+  // Video polling state
+  const videoPollingState = ref({
+    videoId: null,
+    progress: 0,
+    status: '',
+    currentVideoUrl: '',
+    error: ''
+  })
+
+  // Video history
+  const videoHistory = ref([])
+
+  // ========== Config panel visibility ==========
   const configVisible = ref(false)
 
+  // ========== Image helpers ==========
   function addToHistory(item) {
     history.value.unshift(item)
     if (history.value.length > 5) {
@@ -40,9 +67,55 @@ export const useAppStore = defineStore('app', () => {
     history.value = []
   }
 
+  // ========== Video helpers ==========
+  function addToVideoHistory(item) {
+    videoHistory.value.unshift(item)
+    if (videoHistory.value.length > 3) {
+      videoHistory.value = videoHistory.value.slice(0, 3)
+    }
+  }
+
+  function clearVideoHistory() {
+    videoHistory.value = []
+  }
+
+  function resetVideoPolling() {
+    videoPollingState.value = {
+      videoId: null,
+      progress: 0,
+      status: '',
+      currentVideoUrl: '',
+      error: ''
+    }
+  }
+
+  // ========== Computed ==========
+  const apiBaseUrl = computed(() => {
+    try {
+      const u = new URL(apiUrl.value)
+      return `${u.protocol}//${u.host}`
+    } catch {
+      return 'https://apihub.agnes-ai.com'
+    }
+  })
+
   return {
-    apiUrl, apiKey, mode, responseFormat,
-    sizes, selectedSize, history, configVisible,
-    addToHistory, clearHistory
+    // Navigation
+    appMode,
+    // Shared API config
+    apiUrl, apiKey, apiBaseUrl,
+    // Video-specific
+    videoBaseUrl,
+    // Image state
+    mode, responseFormat, sizes, selectedSize, history,
+    // Video state
+    videoMode, videoAspectRatio, videoDuration, videoFrameRate,
+    videoSeed, videoNegativePrompt, videoPollingState, videoHistory,
+    // Config
+    configVisible,
+    // Image helpers
+    addToHistory, clearHistory,
+    // Video helpers
+    addToVideoHistory, clearVideoHistory, resetVideoPolling
   }
 })
