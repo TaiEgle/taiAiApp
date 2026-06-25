@@ -9,13 +9,15 @@
 
     <!-- Header -->
     <header class="app-header">
-      <h1 class="app-title">
-        <el-icon class="title-icon">
-          <component :is="appMode === 'image' ? 'MagicStick' : 'VideoCamera'" />
-        </el-icon>
-        {{ appMode === 'image' ? 'AI 图片生成器' : 'AI 视频生成器' }}
-      </h1>
-      <p class="app-subtitle">Powered by Agnes AI</p>
+      <div class="brand">
+        <div class="brand-icon">
+          <span class="brand-icon-inner">帧</span>
+        </div>
+        <div class="brand-text">
+          <h1 class="brand-name">帧不错</h1>
+          <p class="brand-tagline">AI 图像 · 视频生成</p>
+        </div>
+      </div>
     </header>
 
     <!-- Top-level Mode Tabs: Image / Video -->
@@ -27,7 +29,7 @@
           @click="appMode = 'image'"
         >
           <el-icon><Picture /></el-icon>
-          <span>图片生成</span>
+          <span>图片</span>
         </div>
         <div
           class="nav-tab"
@@ -35,7 +37,7 @@
           @click="appMode = 'video'"
         >
           <el-icon><VideoCamera /></el-icon>
-          <span>视频生成</span>
+          <span>视频</span>
         </div>
       </div>
     </div>
@@ -332,20 +334,25 @@ function startVideoPolling(videoId) {
 
       const data = await response.json()
 
-      // Update progress
+      // Update progress (clamp 0-100, API may return decimal 0~1 or percentage 0~100)
       if (data.progress !== undefined && data.progress !== null) {
-        videoProgress.value = Math.round(data.progress * 100)
+        let p = Math.round(data.progress * 100)
+        if (p > 100) p = Math.round(data.progress) // API already returns percentage
+        videoProgress.value = Math.min(100, Math.max(0, p))
       }
 
       // Update status
       if (data.status) {
         const statusMap = {
           queued: '排队中...',
-          in_progress: `生成中 ${videoProgress.value}%`,
           completed: '已完成！',
           failed: '生成失败'
         }
-        videoStatus.value = statusMap[data.status] || data.status
+        if (data.status === 'in_progress') {
+          videoStatus.value = `生成中 ${videoProgress.value}%`
+        } else {
+          videoStatus.value = statusMap[data.status] || data.status
+        }
       }
 
       // Check completion
@@ -473,36 +480,57 @@ async function handleHttpError(response) {
   75% { transform: translate(20px, 10px) scale(1.02); }
 }
 
-/* Header */
+/* Header / Brand */
 .app-header {
   position: relative;
   z-index: 1;
   text-align: center;
-  padding: 40px 20px 16px;
+  padding: 36px 20px 18px;
 }
 
-.app-title {
+.brand {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 10px;
-  font-size: 28px;
-  font-weight: 700;
+  gap: 14px;
+}
+
+.brand-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 16px rgba(102, 126, 234, 0.35);
+  flex-shrink: 0;
+}
+
+.brand-icon-inner {
+  color: #fff;
+  font-size: 24px;
+  font-weight: 800;
+  font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Noto Sans CJK SC', 'Microsoft YaHei', sans-serif;
+}
+
+.brand-name {
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: 2px;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f472b6 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
   margin: 0;
+  line-height: 1.2;
 }
 
-.title-icon {
-  font-size: 28px;
-}
-
-.app-subtitle {
-  font-size: 14px;
+.brand-tagline {
+  font-size: 13px;
   color: #999;
-  margin: 4px 0 0;
+  margin: 2px 0 0;
+  letter-spacing: 1px;
 }
 
 /* Top-level Navigation */
@@ -579,11 +607,21 @@ async function handleHttpError(response) {
 /* Mobile */
 @media (max-width: 640px) {
   .app-header {
-    padding: 28px 16px 12px;
+    padding: 28px 16px 14px;
   }
 
-  .app-title {
+  .brand-name {
     font-size: 22px;
+  }
+
+  .brand-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+  }
+
+  .brand-icon-inner {
+    font-size: 20px;
   }
 
   .nav-tab {

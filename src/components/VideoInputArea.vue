@@ -37,6 +37,7 @@
           <el-form-item label="视频时长">
             <div class="duration-buttons">
               <button
+                type="button"
                 v-for="d in durations"
                 :key="d.value"
                 class="dur-btn"
