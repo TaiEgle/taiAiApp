@@ -1,0 +1,19 @@
+{
+  "name": "zhen-bucuoi",
+  "compileOptions": {
+    "type": "uni-app-x"
+  },
+  "settings": {
+    "composeDebuggable": false
+  },
+  "i18n": {
+    "zh": {
+      "label": "中文"
+    },
+    "en": {
+      "label": "English"
+    }
+  },
+  "navigatorMode": "native",
+  "launchPath": "pages/index/index"
+}

@@ -1,0 +1,30 @@
+{
+  "name": "帧不错",
+  "appid": "",
+  "description": "AI 图像与视频生成工具",
+  "versionName": "1.0.0",
+  "versionCode": "100",
+  "transformPx": false,
+  "app-plus": {
+    "usingComponents": true,
+    "nvueStyleCompiler": "uni-app",
+    "splashscreen": {
+      "alwaysShowBeforeRender": true,
+      "waiting": true,
+      "autoclose": true,
+      "delay": 0
+    },
+    "modules": {}
+  },
+  "plus": {
+    "statusbar": {
+      "immersed": "supportedDevice",
+      "style": "dark",
+      "background": "#667eea"
+    },
+    "splashscreen": {
+      "autoclose": true,
+      "waiting": false
+    }
+  }
+}

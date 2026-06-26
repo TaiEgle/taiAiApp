@@ -49,7 +49,24 @@
       "Bash(curl -L --connect-timeout 15 --max-time 300 -o /tmp/corretto.pkg \"https://corretto.aws/downloads/latest/amazon-corretto-21-aarch64-macos-jdk.pkg\")",
       "Bash(sudo installer -pkg /tmp/corretto.pkg -target /)",
       "Bash(brew search *)",
-      "Bash(sudo ln -sfn /opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk /Library/Java/JavaVirtualMachines/openjdk-21.jdk)"
+      "Bash(sudo ln -sfn /opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk /Library/Java/JavaVirtualMachines/openjdk-21.jdk)",
+      "Bash(# 查找任何可能的 Android SDK 位置 *)",
+      "Read(//usr/local/**)",
+      "Bash(mkdir -p ~/Library/Android/sdk/cmdline-tools)",
+      "Bash(curl -L --connect-timeout 15 --max-time 300 -o /tmp/commandlinetools.dmg \"https://dl.google.com/android/repository/commandlinetools-mac-11076708_latest.zip\")",
+      "Bash(mkdir -p ~/Library/Android/sdk/cmdline-tools/latest)",
+      "Bash(unzip -q /tmp/commandlinetools.dmg -d ~/Library/Android/sdk/cmdline-tools/latest/)",
+      "Bash(mv ~/Library/Android/sdk/cmdline-tools/latest/cmdline-tools/* ~/Library/Android/sdk/cmdline-tools/latest/)",
+      "Bash(rmdir ~/Library/Android/sdk/cmdline-tools/latest/cmdline-tools)",
+      "Bash(python3 -c \"from PIL import Image; print\\('Pillow available'\\)\")",
+      "WebSearch",
+      "Bash(npx --version)",
+      "Read(//Users/taiegle/Applications/**)",
+      "Read(//Applications/**)",
+      "Read(//usr/local/bin/**)",
+      "Bash(npx --help)",
+      "Bash(cp -r /Users/taiegle/私人开发/code/myAiAPP/backup-old-project/src/components/* /Users/taiegle/私人开发/code/myAiAPP/src/components/)",
+      "Bash(cp -r /Users/taiegle/私人开发/code/myAiAPP/backup-old-project/src/assets /Users/taiegle/私人开发/code/myAiAPP/src/)"
     ],
     "additionalDirectories": [
       "/Users/taiegle/私人开发/code/myAiAPP/.vscode"

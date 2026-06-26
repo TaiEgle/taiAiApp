@@ -1,4 +1,10 @@
 node_modules/
 dist/
+.uni/
+.hbuilderx/
+*.keystore
 .env.local
 .env.*.local
+android/release.keystore
+ios/
+android/

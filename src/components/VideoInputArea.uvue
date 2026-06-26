@@ -1,0 +1,611 @@
+<script lang="ts" setup>
+import { ref, computed, watch } from 'vue'
+import { useAppStore } from '@/stores/app'
+
+const store = useAppStore()
+const emit = defineEmits<{ generate: [data: any] }>()
+
+const prompt = ref('')
+const advancedOpen = ref(false)
+const aspectRatio = ref(store.videoAspectRatio)
+const duration = ref(store.videoDuration)
+const frameRate = ref(store.videoFrameRate)
+const seed = ref<number | null>(store.videoSeed)
+const negativePrompt = ref(store.videoNegativePrompt)
+
+watch(() => store.videoAspectRatio, (v) => { aspectRatio.value = v })
+watch(() => store.videoDuration, (v) => { duration.value = v })
+watch(() => store.videoFrameRate, (v) => { frameRate.value = v })
+watch(() => store.videoSeed, (v) => { seed.value = v })
+watch(() => store.videoNegativePrompt, (v) => { negativePrompt.value = v })
+
+watch([aspectRatio, duration, frameRate, seed, negativePrompt], () => {
+  store.videoAspectRatio = aspectRatio.value
+  store.videoDuration = duration.value
+  store.videoFrameRate = frameRate.value
+  store.videoSeed = seed.value
+  store.videoNegativePrompt = negativePrompt.value
+})
+
+const aspectRatios = [
+  { label: '16:9 (1280×720)', value: '16:9' },
+  { label: '9:16 (720×1280)', value: '9:16' },
+  { label: '1:1 (1024×1024)', value: '1:1' },
+  { label: '4:3 (1024×768)', value: '4:3' },
+  { label: '3:4 (768×1024)', value: '3:4' },
+]
+
+const durations = [
+  { label: '~3秒', value: '3' },
+  { label: '~5秒', value: '5' },
+  { label: '~10秒', value: '10' },
+  { label: '~18秒', value: '18' },
+]
+
+const singleImageUrl = ref('')
+const singleLocalImage = ref('')
+const singleImageName = ref('')
+const imageSlots = ref<Array<{ localImage: string; imageUrl: string; imageName: string }>>([])
+
+const mode = computed(() => store.videoMode)
+const loading = ref(false)
+
+const needImage = computed(() => {
+  return mode.value === 'img2video' || mode.value === 'multi-img' || mode.value === 'keyframes'
+})
+
+const canGenerate = computed(() => {
+  if (!prompt.value.trim()) return false
+  if (mode.value === 'img2video') {
+    return singleLocalImage.value || singleImageUrl.value.trim()
+  }
+  if (mode.value === 'multi-img' || mode.value === 'keyframes') {
+    const validSlots = imageSlots.value.filter(s => s.localImage || s.imageUrl.trim())
+    return validSlots.length >= 2
+  }
+  return true
+})
+
+function triggerSingleUpload() {
+  uni.chooseImage({
+    count: 1,
+    success: (res) => {
+      const fp = res.tempFilePaths[0]
+      singleImageName.value = fp.split('/').pop() || 'uploaded.jpg'
+      singleLocalImage.value = fp
+    },
+  })
+}
+
+function clearSingleImage() {
+  singleLocalImage.value = ''
+  singleImageName.value = ''
+  singleImageUrl.value = ''
+}
+
+function addImageSlot() {
+  imageSlots.value.push({ localImage: '', imageUrl: '', imageName: '' })
+}
+
+function removeImageSlot(idx: number) {
+  imageSlots.value.splice(idx, 1)
+}
+
+function triggerSlotUpload(idx: number) {
+  uni.chooseImage({
+    count: 1,
+    success: (res) => {
+      const fp = res.tempFilePaths[0]
+      imageSlots.value[idx].imageName = fp.split('/').pop() || 'uploaded.jpg'
+      imageSlots.value[idx].localImage = fp
+    },
+  })
+}
+
+function clearSlotImage(idx: number) {
+  imageSlots.value[idx].localImage = ''
+  imageSlots.value[idx].imageUrl = ''
+  imageSlots.value[idx].imageName = ''
+}
+
+watch(mode, (newMode) => {
+  if ((newMode === 'multi-img' || newMode === 'keyframes') && imageSlots.value.length < 2) {
+    while (imageSlots.value.length < 2) {
+      imageSlots.value.push({ localImage: '', imageUrl: '', imageName: '' })
+    }
+  }
+})
+
+async function handleGenerate() {
+  if (loading.value || !canGenerate.value) return
+  loading.value = true
+
+  try {
+    let imageSlotsData: Array<{ localImage: string; imageUrl: string }> = []
+    let singleImageData: { localImage: string; imageUrl: string } | undefined
+
+    if (mode.value === 'img2video') {
+      singleImageData = {
+        localImage: singleLocalImage.value,
+        imageUrl: singleImageUrl.value.trim(),
+      }
+    } else if (mode.value === 'multi-img' || mode.value === 'keyframes') {
+      imageSlotsData = imageSlots.value.map(s => ({
+        localImage: s.localImage,
+        imageUrl: s.imageUrl.trim(),
+      }))
+    }
+
+    emit('generate', {
+      prompt: prompt.value.trim(),
+      aspectRatio: aspectRatio.value,
+      duration: duration.value,
+      frameRate: frameRate.value,
+      seed: seed.value,
+      negativePrompt: negativePrompt.value.trim(),
+      singleImageData,
+      imageSlots: imageSlotsData,
+    })
+  } finally {
+    loading.value = false
+  }
+}
+
+function onAspectChange(e: any) {
+  const idx = e.detail.value
+  aspectRatio.value = aspectRatios[idx].value
+}
+</script>
+
+<template>
+  <div class="video-input-area">
+    <div class="prompt-wrapper">
+      <textarea
+        v-model="prompt"
+        class="prompt-input"
+        placeholder="描述你想要的视频… 例如：一只猫在夕阳下的沙滩上奔跑"
+        :auto-height="false"
+        :maxlength="500"
+      />
+    </div>
+
+    <div class="advanced-toggle" @click="advancedOpen = !advancedOpen">
+      <text>高级选项</text>
+      <text class="arrow-icon">{{ advancedOpen ? '▼' : '▶' }}</text>
+    </div>
+
+    <div v-if="advancedOpen" class="advanced-panel">
+      <div class="form-item">
+        <text class="form-label">宽高比</text>
+        <picker :range="aspectRatios" range-key="label" @change="onAspectChange">
+          <div class="picker-display">
+            <text>{{ aspectRatio }}</text>
+            <text class="picker-arrow">▼</text>
+          </div>
+        </picker>
+      </div>
+
+      <div class="form-item">
+        <text class="form-label">视频时长</text>
+        <div class="duration-buttons">
+          <button
+            v-for="d in durations"
+            :key="d.value"
+            class="dur-btn"
+            :class="{ active: duration === d.value }"
+            @click="duration = d.value"
+          >
+            <text>{{ d.label }}</text>
+          </button>
+        </div>
+      </div>
+
+      <div class="form-item">
+        <text class="form-label">帧率 (fps)</text>
+        <div class="stepper-wrapper">
+          <button class="stepper-btn" @click="frameRate = Math.max(1, frameRate - 1)">-</button>
+          <text class="stepper-value">{{ frameRate }}</text>
+          <button class="stepper-btn" @click="frameRate = Math.min(60, frameRate + 1)">+</button>
+        </div>
+      </div>
+
+      <div class="form-item">
+        <text class="form-label">随机种子 (可选)</text>
+        <input
+          v-model="seed"
+          class="seed-input"
+          type="number"
+          placeholder="留空则随机"
+        />
+      </div>
+
+      <div class="form-item">
+        <text class="form-label">负向提示词 (可选)</text>
+        <textarea
+          v-model="negativePrompt"
+          class="neg-input"
+          placeholder="不希望在视频中出现的元素…"
+          :maxlength="500"
+        />
+      </div>
+    </div>
+
+    <div v-if="needImage" class="image-upload-section">
+      <template v-if="mode === 'img2video'">
+        <input
+          v-model="singleImageUrl"
+          class="url-input"
+          placeholder="输入图片公网 URL"
+          type="text"
+        />
+        <div class="upload-area" @click="triggerSingleUpload">
+          <text class="upload-text">📁 点击上传本地图片</text>
+          <text v-if="singleLocalImage" class="upload-text success">✓ {{ singleImageName }}</text>
+        </div>
+        <image v-if="singleLocalImage" :src="singleLocalImage" class="preview-image" mode="aspectFit">
+          <div class="close-preview" @click="clearSingleImage">
+            <text class="close-icon">✕</text>
+          </div>
+        </image>
+      </template>
+
+      <template v-else>
+        <div class="multi-image-header">
+          <text>图片序列（至少 2 张）</text>
+          <button class="add-btn" @click="addImageSlot">
+            <text>+ 添加图片</text>
+          </button>
+        </div>
+
+        <div
+          v-for="(slot, idx) in imageSlots"
+          :key="idx"
+          class="image-slot"
+        >
+          <div class="slot-header">
+            <text class="slot-label">关键帧 {{ idx + 1 }}</text>
+            <button v-if="imageSlots.length > 2" class="remove-btn" @click="removeImageSlot(idx)">
+              <text>✕</text>
+            </button>
+          </div>
+
+          <input
+            v-model="slot.imageUrl"
+            class="url-input"
+            placeholder="或输入图片 URL"
+            type="text"
+          />
+
+          <div class="upload-area small" @click="triggerSlotUpload(idx)">
+            <text class="upload-text">📁 上传本地图片</text>
+            <text v-if="slot.localImage" class="upload-text success">✓ {{ slot.imageName || '已上传' }}</text>
+          </div>
+
+          <image v-if="slot.localImage" :src="slot.localImage" class="preview-image" mode="aspectFit">
+            <div class="close-preview" @click="clearSlotImage(idx)">
+              <text class="close-icon">✕</text>
+            </div>
+          </image>
+        </div>
+      </template>
+    </div>
+
+    <button
+      class="generate-btn"
+      :disabled="loading || !canGenerate"
+      @click="handleGenerate"
+    >
+      <text v-if="loading">⏳ 生成中…</text>
+      <text v-else>🎬 生成视频</text>
+    </button>
+  </div>
+</template>
+
+<style>
+.video-input-area {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.prompt-wrapper {
+  width: 100%;
+}
+
+.prompt-input {
+  width: 100%;
+  min-height: 100px;
+  padding: 14px 16px;
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  border-radius: 14px;
+  font-size: 15px;
+  line-height: 1.6;
+  color: #1d1d1f;
+}
+
+.prompt-input:focus {
+  border-color: rgba(102, 126, 234, 0.5);
+}
+
+.advanced-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 4px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  color: #888;
+}
+
+.advanced-panel {
+  background: rgba(255, 255, 255, 0.5);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-radius: 14px;
+  padding: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+}
+
+.form-item {
+  margin-bottom: 14px;
+}
+
+.form-item:last-child {
+  margin-bottom: 0;
+}
+
+.form-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #555;
+  margin-bottom: 6px;
+  display: block;
+}
+
+.picker-display {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  border-radius: 10px;
+}
+
+.picker-arrow {
+  font-size: 10px;
+  color: #999;
+}
+
+.duration-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+.dur-btn {
+  flex: 1;
+  padding: 8px 12px;
+  border: 1px solid rgba(200, 200, 200, 0.4);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.6);
+  color: #666;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.dur-btn.active {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: #fff;
+  border-color: transparent;
+  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+}
+
+.url-input {
+  width: 100%;
+  padding: 12px 14px;
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  border-radius: 12px;
+  font-size: 14px;
+  color: #1d1d1f;
+}
+
+.stepper-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.stepper-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: 1px solid rgba(200, 200, 200, 0.4);
+  background: rgba(255, 255, 255, 0.6);
+  font-size: 18px;
+  color: #666;
+}
+
+.stepper-value {
+  font-size: 15px;
+  font-weight: 600;
+  color: #333;
+  min-width: 40px;
+  text-align: center;
+}
+
+.seed-input {
+  width: 100%;
+  padding: 10px 14px;
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  border-radius: 10px;
+  font-size: 14px;
+  color: #1d1d1f;
+}
+
+.neg-input {
+  width: 100%;
+  min-height: 60px;
+  padding: 10px 14px;
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  border-radius: 10px;
+  font-size: 14px;
+  color: #1d1d1f;
+}
+
+.image-upload-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.upload-area {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 14px;
+  border: 2px dashed rgba(102, 126, 234, 0.3);
+  border-radius: 12px;
+  cursor: pointer;
+  background: rgba(255, 255, 255, 0.4);
+}
+
+.upload-area.small {
+  padding: 10px;
+}
+
+.upload-text {
+  font-size: 13px;
+  color: #888;
+}
+
+.upload-text.success {
+  color: #67c23a;
+  font-weight: 500;
+}
+
+.preview-image {
+  width: 100%;
+  max-height: 180px;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  position: relative;
+}
+
+.close-preview {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.close-icon {
+  color: #fff;
+  font-size: 14px;
+  font-weight: bold;
+}
+
+.close-preview:active {
+  background: rgba(220, 53, 69, 0.8);
+}
+
+.multi-image-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 14px;
+  font-weight: 600;
+  color: #666;
+}
+
+.add-btn {
+  padding: 4px 12px;
+  border: none;
+  border-radius: 8px;
+  background: rgba(102, 126, 234, 0.1);
+  color: #667eea;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.image-slot {
+  background: rgba(255, 255, 255, 0.5);
+  border-radius: 14px;
+  padding: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.slot-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.slot-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #555;
+}
+
+.remove-btn {
+  padding: 2px 8px;
+  border: none;
+  border-radius: 6px;
+  background: rgba(245, 108, 108, 0.1);
+  color: #f56c6c;
+  font-size: 14px;
+}
+
+.generate-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 14px 24px;
+  border: none;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: #fff;
+  font-size: 16px;
+  font-weight: 600;
+  box-shadow: 0 4px 16px rgba(102, 126, 234, 0.3);
+}
+
+.generate-btn:disabled {
+  opacity: 0.5;
+}
+
+.generate-btn:active:not(:disabled) {
+  opacity: 0.85;
+}
+
+@media (max-width: 640px) {
+  .duration-buttons {
+    flex-wrap: wrap;
+  }
+
+  .dur-btn {
+    flex: 1 1 calc(50% - 4px);
+  }
+}
+</style>

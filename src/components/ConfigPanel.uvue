@@ -1,0 +1,258 @@
+<script lang="ts" setup>
+import { computed } from 'vue'
+import { useAppStore, IMAGE_SIZES, saveImageHistory, saveVideoHistory } from '@/stores/app'
+
+const store = useAppStore()
+
+const responseFormatBool = computed({
+  get: () => store.responseFormat === 'b64_json',
+  set: (val: boolean) => { store.responseFormat = val ? 'b64_json' : 'url' }
+})
+
+function clearHistory() {
+  store.history = []
+  saveImageHistory(store)
+  uni.showToast({ title: '历史已清空', icon: 'success' })
+}
+
+function clearVideoHistory() {
+  store.videoHistory = []
+  saveVideoHistory(store.videoHistory)
+  uni.showToast({ title: '视频历史已清空', icon: 'success' })
+}
+
+function onSizeChange(e: any) {
+  store.selectedSize = IMAGE_SIZES[e.detail.value].value
+}
+</script>
+
+<template>
+  <div class="config-toggle" @click="store.configVisible = !store.configVisible">
+    <text class="gear-icon">⚙️</text>
+  </div>
+
+  <div v-if="store.configVisible" class="config-overlay" @click.self="store.configVisible = false">
+    <div class="config-card">
+      <div class="config-header">
+        <text class="config-title">配置中心</text>
+        <button class="close-btn" @click="store.configVisible = false">
+          <text>✕</text>
+        </button>
+      </div>
+
+      <div class="form-item">
+        <text class="form-label">API 地址</text>
+        <input
+          v-model="store.apiUrl"
+          class="form-input"
+          placeholder="https://api.example.com/v1/images/generations"
+          type="text"
+        />
+      </div>
+
+      <div class="form-item">
+        <text class="form-label">API Key</text>
+        <input
+          v-model="store.apiKey"
+          class="form-input"
+          type="text"
+          password
+          placeholder="请输入你的 API Key"
+        />
+      </div>
+
+      <div class="form-item">
+        <text class="form-label">输出格式</text>
+        <switch
+          :checked="responseFormatBool"
+          @change="responseFormatBool = ($event as any).detail.value"
+          color="#667eea"
+        />
+        <text class="format-label">
+          {{ responseFormatBool ? 'Base64' : 'URL' }}
+        </text>
+      </div>
+
+      <div class="form-item">
+        <text class="form-label">图片尺寸</text>
+        <picker
+          :range="IMAGE_SIZES"
+          range-key="label"
+          @change="onSizeChange"
+        >
+          <div class="picker-display">
+            <text>{{ store.selectedSize }}</text>
+            <text class="picker-arrow">▼</text>
+          </div>
+        </picker>
+      </div>
+
+      <div class="form-item">
+        <text class="form-label">图片历史记录</text>
+        <button class="clear-btn" @click="clearHistory">
+          <text>🗑️ 清空历史</text>
+        </button>
+      </div>
+
+      <div class="form-item">
+        <text class="form-label">视频历史记录</text>
+        <button class="clear-btn" @click="clearVideoHistory">
+          <text>🗑️ 清空视频历史</text>
+        </button>
+      </div>
+    </div>
+  </div>
+</template>
+
+<style>
+.config-toggle {
+  position: fixed;
+  top: 12px;
+  right: 12px;
+  z-index: 1000;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.gear-icon {
+  font-size: 22px;
+}
+
+.config-toggle:active {
+  transform: rotate(90deg);
+}
+
+.config-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 80px;
+  z-index: 999;
+}
+
+.config-card {
+  width: 90%;
+  max-width: 420px;
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+}
+
+.config-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+
+.config-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: #1d1d1f;
+}
+
+.close-btn {
+  padding: 4px 10px;
+  border: none;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.form-item {
+  margin-bottom: 16px;
+}
+
+.form-item:last-child {
+  margin-bottom: 0;
+}
+
+.form-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #555;
+  margin-bottom: 6px;
+  display: block;
+}
+
+.form-input {
+  width: 100%;
+  padding: 12px 14px;
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  border-radius: 12px;
+  font-size: 14px;
+  color: #1d1d1f;
+}
+
+.form-input:focus {
+  border-color: rgba(102, 126, 234, 0.5);
+}
+
+.format-label {
+  font-size: 14px;
+  color: #666;
+  margin-left: 10px;
+}
+
+.picker-display {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  border-radius: 12px;
+}
+
+.picker-arrow {
+  font-size: 10px;
+  color: #999;
+}
+
+.clear-btn {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid rgba(245, 108, 108, 0.3);
+  border-radius: 10px;
+  background: rgba(245, 108, 108, 0.05);
+  color: #f56c6c;
+  font-size: 14px;
+}
+
+.clear-btn:active {
+  background: rgba(245, 108, 108, 0.15);
+}
+
+@media (max-width: 640px) {
+  .config-overlay {
+    align-items: flex-end;
+    padding-top: 0;
+  }
+
+  .config-card {
+    border-radius: 16px 16px 0 0;
+    margin-top: auto;
+  }
+}
+</style>

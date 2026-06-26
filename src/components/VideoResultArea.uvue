@@ -1,0 +1,384 @@
+<script lang="ts" setup>
+import { ref, watch, onUnmounted } from 'vue'
+
+const props = defineProps<{
+  polling: boolean
+  progress: number
+  status: string
+  currentVideoUrl: string
+  error: string
+}>()
+
+const emit = defineEmits<{ 'stop-polling': [] }>()
+
+const fullscreenSrc = ref('')
+const elapsedSeconds = ref(0)
+let elapsedTimer: number | null = null
+const hasRealProgress = ref(false)
+const showSubmittingState = ref(false)
+
+function startElapsedTimer() {
+  elapsedSeconds.value = 0
+  if (elapsedTimer) clearInterval(elapsedTimer)
+  elapsedTimer = setInterval(() => {
+    elapsedSeconds.value++
+  }, 1000) as unknown as number
+}
+
+function stopElapsedTimer() {
+  if (elapsedTimer) {
+    clearInterval(elapsedTimer)
+    elapsedTimer = null
+  }
+}
+
+watch(() => props.progress, (val) => {
+  if (val > 0 && val <= 100) hasRealProgress.value = true
+})
+
+watch(() => props.status, (val) => {
+  if (val && !val.includes('排队') && !val.includes('提交')) {
+    hasRealProgress.value = true
+  }
+})
+
+watch(() => props.polling, (val) => {
+  if (val) {
+    startElapsedTimer()
+    hasRealProgress.value = false
+    showSubmittingState.value = true
+  } else {
+    stopElapsedTimer()
+    hasRealProgress.value = false
+    showSubmittingState.value = false
+  }
+})
+
+watch(() => props.progress, (val) => {
+  if (val > 0 && props.polling) {
+    showSubmittingState.value = false
+  }
+})
+
+onUnmounted(stopElapsedTimer)
+
+const submittingText = ref('正在提交任务，请稍候')
+const statusText = ref(props.status || '排队中...')
+
+watch(() => props.status, (val) => {
+  statusText.value = val || '排队中...'
+  if (val === '排队中...') submittingText.value = '正在排队，即将开始生成'
+  else if (val === '提交中...') submittingText.value = '正在提交任务，请稍候'
+  else submittingText.value = '正在生成视频...'
+})
+
+watch(() => props.progress, (val) => {
+  if (val > 0 && val < 100) {
+    statusText.value = `生成中 ${val}%`
+  }
+})
+
+function openFullscreen() {
+  if (props.currentVideoUrl) {
+    fullscreenSrc.value = props.currentVideoUrl
+  }
+}
+
+function closeFullscreen() {
+  fullscreenSrc.value = ''
+}
+
+async function downloadVideo() {
+  if (!props.currentVideoUrl) return
+  try {
+    uni.saveVideoToPhotosAlbum({
+      filePath: props.currentVideoUrl,
+      success: () => uni.showToast({ title: '保存成功', icon: 'success' }),
+      fail: () => uni.showToast({ title: '保存失败', icon: 'error' }),
+    })
+  } catch {
+    uni.showToast({ title: '暂不支持此视频格式', icon: 'none' })
+  }
+}
+</script>
+
+<template>
+  <div class="video-result-area">
+    <div v-if="error" class="error-banner">
+      <text class="error-text">⚠️ {{ error }}</text>
+    </div>
+
+    <div v-if="showSubmittingState" class="submitting-state">
+      <text class="center-icon">🎬</text>
+      <text class="submitting-main">{{ submittingText }}</text>
+      <text class="submitting-sub">视频生成通常需要 3-5 分钟，请耐心等待</text>
+      <div class="elapsed">
+        <text>⏱️ 已等待 {{ elapsedSeconds }} 秒</text>
+      </div>
+      <button class="cancel-btn" @click="emit('stop-polling')">
+        <text>✕ 取消生成</text>
+      </button>
+    </div>
+
+    <div v-if="polling && hasRealProgress && !currentVideoUrl && !error" class="polling-state">
+      <div class="progress-ring">
+        <progress
+          class="progress-circle"
+          type="circle"
+          :percent="progress"
+          :stroke-width="8"
+          color="#667eea"
+        />
+        <text class="progress-text">{{ progress }}%</text>
+      </div>
+      <text class="status-text">{{ statusText }}</text>
+    </div>
+
+    <div v-if="currentVideoUrl && !polling" class="result-display">
+      <div class="result-video-wrapper" @click="openFullscreen">
+        <video
+          :src="currentVideoUrl"
+          class="result-video"
+          controls
+          :object-fit="'contain'"
+        />
+        <div class="fullscreen-hint">
+          <text>🔍 点击全屏预览</text>
+        </div>
+      </div>
+      <div class="result-actions">
+        <button class="download-btn" @click.stop="downloadVideo">
+          <text>📥 下载视频</text>
+        </button>
+      </div>
+    </div>
+
+    <div v-if="!currentVideoUrl && !polling && !error" class="empty-state">
+      <text class="empty-icon">🎬</text>
+      <text class="empty-text">你的视频将在这里展示</text>
+      <text class="empty-sub">输入描述，点击生成开始创作</text>
+    </div>
+
+    <div v-if="fullscreenSrc" class="fullscreen-overlay" @click="closeFullscreen">
+      <video :src="fullscreenSrc" class="overlay-video" controls autoplay />
+    </div>
+  </div>
+</template>
+
+<style>
+.video-result-area {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  min-height: 200px;
+}
+
+.error-banner {
+  width: 100%;
+  padding: 12px 16px;
+  background: rgba(245, 108, 108, 0.1);
+  border-radius: 12px;
+  border: 1px solid rgba(245, 108, 108, 0.3);
+}
+
+.error-text {
+  color: #f56c6c;
+  font-size: 14px;
+}
+
+.submitting-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  padding: 60px 0;
+}
+
+.center-icon {
+  font-size: 48px;
+  color: #667eea;
+  animation: spinSlow 3s linear infinite;
+}
+
+@keyframes spinSlow {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.submitting-main {
+  font-size: 17px;
+  font-weight: 600;
+  color: #444;
+  animation: pulseText 2s ease-in-out infinite;
+}
+
+@keyframes pulseText {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+.submitting-sub {
+  font-size: 13px;
+  color: #aaa;
+}
+
+.elapsed {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: #999;
+  padding: 6px 16px;
+  background: rgba(102, 126, 234, 0.06);
+  border-radius: 20px;
+}
+
+.cancel-btn {
+  padding: 6px 16px;
+  border: none;
+  border-radius: 8px;
+  background: rgba(245, 108, 108, 0.1);
+  color: #f56c6c;
+  font-size: 13px;
+}
+
+.polling-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  padding: 40px 0;
+}
+
+.progress-ring {
+  position: relative;
+  width: 120px;
+  height: 120px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.progress-circle {
+  width: 120px;
+  height: 120px;
+}
+
+.progress-text {
+  position: absolute;
+  font-size: 22px;
+  font-weight: 700;
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.status-text {
+  color: #888;
+  font-size: 15px;
+}
+
+.result-display {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+.result-video-wrapper {
+  position: relative;
+  width: 100%;
+  border-radius: 16px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.6);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.06);
+}
+
+.result-video {
+  width: 100%;
+  border-radius: 16px;
+}
+
+.fullscreen-hint {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  padding: 6px 12px;
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border-radius: 20px;
+  color: #fff;
+  font-size: 12px;
+}
+
+.result-actions {
+  display: flex;
+  justify-content: center;
+  padding: 12px 0 16px;
+}
+
+.download-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 24px;
+  border: none;
+  border-radius: 20px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 60px 0;
+}
+
+.empty-icon {
+  font-size: 64px;
+}
+
+.empty-text {
+  font-size: 18px;
+  font-weight: 500;
+  color: #999;
+}
+
+.empty-sub {
+  font-size: 14px;
+  color: #bbb;
+}
+
+.fullscreen-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 9999;
+  background: rgba(0, 0, 0, 0.9);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.overlay-video {
+  max-width: 95vw;
+  max-height: 90vh;
+  border-radius: 8px;
+}
+</style>

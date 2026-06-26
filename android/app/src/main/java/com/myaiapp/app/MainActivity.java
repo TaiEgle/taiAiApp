@@ -1,5 +1,0 @@
-package com.myaiapp.app;
-
-import com.getcapacitor.BridgeActivity;
-
-public class MainActivity extends BridgeActivity {}

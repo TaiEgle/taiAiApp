@@ -1,0 +1,223 @@
+<script lang="ts" setup>
+import { ref, computed } from 'vue'
+import { useAppStore } from '@/stores/app'
+
+const store = useAppStore()
+const emit = defineEmits<{ generate: [data: { prompt: string; imageUrl?: string; localImage?: string }] }>()
+
+const prompt = ref('')
+const imageUrl = ref('')
+const localImage = ref('')
+const localImageName = ref('')
+const loading = ref(false)
+
+const mode = computed(() => store.imageMode)
+
+const canGenerate = computed(() => {
+  if (!prompt.value.trim()) return false
+  if (store.imageMode === 'img2img' && !localImage.value && !imageUrl.value.trim()) return false
+  return true
+})
+
+function triggerFileUpload() {
+  uni.chooseImage({
+    count: 1,
+    success: (res) => {
+      const tempFilePath = res.tempFilePaths[0]
+      localImageName.value = tempFilePath.split('/').pop() || 'uploaded.jpg'
+      localImage.value = tempFilePath
+    },
+  })
+}
+
+function clearLocalImage() {
+  localImage.value = ''
+  localImageName.value = ''
+  imageUrl.value = ''
+}
+
+async function handleGenerate() {
+  if (loading.value || !canGenerate.value) return
+  loading.value = true
+  try {
+    emit('generate', {
+      prompt: prompt.value.trim(),
+      imageUrl: imageUrl.value.trim(),
+      localImage: localImage.value,
+    })
+  } finally {
+    loading.value = false
+  }
+}
+</script>
+
+<template>
+  <div class="input-area">
+    <div class="prompt-wrapper">
+      <textarea
+        v-model="prompt"
+        class="prompt-input"
+        placeholder="描述你想要的图片… 例如：一只坐在月球上的猫咪，赛博朋克风格"
+        :auto-height="false"
+        :maxlength="500"
+      />
+    </div>
+
+    <div v-if="mode === 'img2img'" class="image-upload-section">
+      <input
+        v-model="imageUrl"
+        class="url-input"
+        placeholder="或输入图片公网 URL"
+        type="text"
+      />
+
+      <div class="upload-area" @click="triggerFileUpload">
+        <text class="upload-text">📁 点击上传图片</text>
+        <text v-if="localImage" class="upload-text success">✓ {{ localImageName }}</text>
+      </div>
+
+      <image v-if="localImage" :src="localImage" class="preview-image" mode="aspectFit">
+        <div class="close-preview" @click="clearLocalImage">
+          <text class="close-icon">✕</text>
+        </div>
+      </image>
+    </div>
+
+    <button
+      class="generate-btn"
+      :disabled="loading || !canGenerate"
+      @click="handleGenerate"
+    >
+      <text v-if="loading">⏳ 生成中…</text>
+      <text v-else>✨ 生成图片</text>
+    </button>
+  </div>
+</template>
+
+<style>
+.input-area {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.prompt-wrapper {
+  width: 100%;
+}
+
+.prompt-input {
+  width: 100%;
+  min-height: 100px;
+  padding: 14px 16px;
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  border-radius: 14px;
+  font-size: 15px;
+  line-height: 1.6;
+  color: #1d1d1f;
+}
+
+.prompt-input:focus {
+  border-color: rgba(102, 126, 234, 0.5);
+}
+
+.image-upload-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.url-input {
+  width: 100%;
+  padding: 12px 14px;
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  border-radius: 12px;
+  font-size: 14px;
+  color: #1d1d1f;
+}
+
+.upload-area {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 16px;
+  border: 2px dashed rgba(102, 126, 234, 0.3);
+  border-radius: 12px;
+  cursor: pointer;
+  background: rgba(255, 255, 255, 0.4);
+}
+
+.upload-text {
+  font-size: 14px;
+  color: #888;
+}
+
+.upload-text.success {
+  color: #67c23a;
+  font-weight: 500;
+}
+
+.preview-image {
+  width: 100%;
+  max-height: 200px;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  position: relative;
+}
+
+.close-preview {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.close-icon {
+  color: #fff;
+  font-size: 16px;
+  font-weight: bold;
+}
+
+.close-preview:active {
+  background: rgba(220, 53, 69, 0.8);
+}
+
+.generate-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 14px 24px;
+  border: none;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: #fff;
+  font-size: 16px;
+  font-weight: 600;
+  box-shadow: 0 4px 16px rgba(102, 126, 234, 0.3);
+}
+
+.generate-btn:disabled {
+  opacity: 0.5;
+}
+
+.generate-btn:active:not(:disabled) {
+  opacity: 0.85;
+}
+</style>
