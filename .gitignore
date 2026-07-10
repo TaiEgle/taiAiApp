@@ -8,3 +8,4 @@ dist/
 android/release.keystore
 ios/
 android/
+build/
