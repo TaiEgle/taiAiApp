@@ -22,14 +22,14 @@ class AppTheme {
   );
 
   // Glassmorphism card style
-  static BoxDecoration glassCardDecoration = const BoxDecoration(
-    gradient: LinearGradient(
+  static BoxDecoration glassCardDecoration = BoxDecoration(
+    gradient: const LinearGradient(
       colors: [Color(0x99FFFFFF), Color(0x88FFFFFF)],
       begin: Alignment.topCenter,
       end: Alignment.bottomCenter,
     ),
-    borderRadius: BorderRadius.all(Radius.circular(20)),
-    boxShadow: [
+    borderRadius: const BorderRadius.all(Radius.circular(20)),
+    boxShadow: const [
       BoxShadow(
         color: Color(0x0A000000),
         blurRadius: 24,
@@ -39,10 +39,10 @@ class AppTheme {
   );
 
   // Brand icon gradient
-  static BoxDecoration brandIconDecoration = const BoxDecoration(
+  static BoxDecoration brandIconDecoration = BoxDecoration(
     gradient: primaryGradient,
-    borderRadius: BorderRadius.all(Radius.circular(14)),
-    boxShadow: [
+    borderRadius: const BorderRadius.all(Radius.circular(14)),
+    boxShadow: const [
       BoxShadow(
         color: Color(0x59667EEA),
         blurRadius: 16,
@@ -52,10 +52,10 @@ class AppTheme {
   );
 
   // Tab active decoration
-  static BoxDecoration tabActiveDecoration = const BoxDecoration(
+  static BoxDecoration tabActiveDecoration = BoxDecoration(
     gradient: primaryGradient,
-    borderRadius: BorderRadius.all(Radius.circular(11)),
-    boxShadow: [
+    borderRadius: const BorderRadius.all(Radius.circular(11)),
+    boxShadow: const [
       BoxShadow(
         color: Color(0x59667EEA),
         blurRadius: 8,
@@ -70,25 +70,25 @@ class AppTheme {
   );
 
   // Glass container for inputs
-  static BoxDecoration glassContainerDecoration = const BoxDecoration(
-    gradient: LinearGradient(
+  static BoxDecoration glassContainerDecoration = BoxDecoration(
+    gradient: const LinearGradient(
       colors: [Color(0x99FFFFFF), Color(0x88FFFFFF)],
       begin: Alignment.topCenter,
       end: Alignment.bottomCenter,
     ),
-    borderRadius: BorderRadius.all(Radius.circular(14)),
-    border: Border.all(color: Color(0x66FFFFFF), width: 1),
+    borderRadius: const BorderRadius.all(Radius.circular(14)),
+    border: Border.all(color: const Color(0x66FFFFFF), width: 1),
   );
 
   // Prompt input style
-  static BoxDecoration promptInputDecoration = const BoxDecoration(
-    gradient: LinearGradient(
+  static BoxDecoration promptInputDecoration = BoxDecoration(
+    gradient: const LinearGradient(
       colors: [Color(0xB2FFFFFF), Color(0xB2FFFFFF)],
       begin: Alignment.topCenter,
       end: Alignment.bottomCenter,
     ),
-    borderRadius: BorderRadius.all(Radius.circular(14)),
-    border: Border.all(color: Color(0x80FFFFFF), width: 1),
+    borderRadius: const BorderRadius.all(Radius.circular(14)),
+    border: Border.all(color: const Color(0x80FFFFFF), width: 1),
   );
 
   // Focus border color
@@ -193,6 +193,7 @@ class _AnimatedOrbState extends State<_AnimatedOrb>
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
+
     return AnimatedBuilder(
       animation: _anim,
       builder: (context, child) {
@@ -213,21 +214,35 @@ class _AnimatedOrbState extends State<_AnimatedOrb>
           scale = 0.97 + (t < 0.5 ? t * 0.06 : (1 - t) * 0.06);
         }
 
-        final pos = widget.center
-            ? Positioned(
+        return Stack(
+          children: [
+            if (widget.center)
+              Positioned(
                 left: size.width / 2 - widget.size / 2 + dx,
                 top: size.height / 2 - widget.size / 2 + dy,
-                child: child,
+                width: widget.size,
+                height: widget.size,
+                child: Transform.scale(
+                  scale: scale,
+                  child: child,
+                ),
               )
-            : Positioned(
+            else
+              Positioned(
                 top: widget.top,
                 left: widget.left,
                 bottom: widget.bottom,
                 right: widget.right,
-                child: Transform.translate(offset: Offset(dx, dy), child: child),
-              );
-
-        return Transform.scale(scale: scale, child: pos);
+                child: Transform.translate(
+                  offset: Offset(dx, dy),
+                  child: Transform.scale(
+                    scale: scale,
+                    child: child,
+                  ),
+                ),
+              ),
+          ],
+        );
       },
       child: Container(
         width: widget.size,

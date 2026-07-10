@@ -18,7 +18,7 @@ class VideoResultArea extends StatefulWidget {
     required this.status,
     required this.currentVideoUrl,
     required this.error,
-    this.onStopPolling = () {},
+    required this.onStopPolling,
   });
 
   @override
@@ -191,11 +191,11 @@ class _PollingState extends StatelessWidget {
                 ),
                 Text(
                   '${progress.toInt()}%',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 22,
                     fontWeight: FontWeight.bold,
                     background: Paint()
-                      ..shader = const LinearGradient(colors: [Color(0xFF667EEA), Color(0xFF764BA2)])
+                      ..shader = LinearGradient(colors: [const Color(0xFF667EEA), const Color(0xFF764BA2)])
                           .createShader(const Rect.fromLTWH(0, 0, 100, 30)),
                   ),
                 ),
@@ -238,7 +238,6 @@ class _VideoResult extends StatelessWidget {
                       decoration: BoxDecoration(
                         color: const Color(0x73000000),
                         borderRadius: BorderRadius.circular(20),
-                        backdropFilter: const ImageFilter.blur(sigmaX: 8, sigmaY: 8),
                       ),
                       child: const Text('🔍 点击全屏预览', style: TextStyle(fontSize: 12, color: Colors.white)),
                     ),

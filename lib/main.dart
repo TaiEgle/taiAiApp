@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'services/storage_service.dart';
 import 'providers/app_provider.dart';
 import 'pages/main_page.dart';
+import 'theme/app_theme.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -27,22 +28,38 @@ void main() async {
   runApp(const MyApp());
 }
 
-class MyApp extends StatelessWidget {
+class MyApp extends StatefulWidget {
   const MyApp({super.key});
+
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
+  late final AppState _appState = AppState();
+  late final Dio _dio;
+
+  @override
+  void initState() {
+    super.initState();
+    _dio = Dio(BaseOptions(
+      connectTimeout: const Duration(seconds: 30),
+      receiveTimeout: const Duration(seconds: 60),
+    ));
+    _initAppState();
+  }
+
+  Future<void> _initAppState() async {
+    await _appState.loadState();
+    if (mounted) setState(() {});
+  }
 
   @override
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
-        ChangeNotifierProvider(
-          create: (_) async => await _initAppState() ,
-        ),
-        Provider<Dio>.value(
-          value: Dio(BaseOptions(
-            connectTimeout: const Duration(seconds: 30),
-            receiveTimeout: const Duration(seconds: 60),
-          )),
-        ),
+        ChangeNotifierProvider<AppState>.value(value: _appState),
+        Provider<Dio>.value(value: _dio),
       ],
       child: MaterialApp(
         title: '帧不错',
@@ -60,11 +77,5 @@ class MyApp extends StatelessWidget {
         home: const MainPage(),
       ),
     );
-  }
-
-  Future<AppState> _initAppState() async {
-    final state = AppState();
-    await state.loadState();
-    return state;
   }
 }

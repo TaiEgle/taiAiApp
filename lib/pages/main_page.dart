@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:dio/dio.dart';
 import '../models/models.dart';
 import '../providers/app_provider.dart';
 import '../services/image_service.dart';
@@ -265,7 +266,11 @@ class _MainPageState extends State<MainPage> {
           Container(
             color: AppTheme.bgColor,
           ),
-          AppTheme.buildBackground(context),
+          // Temporarily disabled for debugging
+          // IgnorePointer(
+          //   ignoring: true,
+          //   child: AppTheme.buildBackground(context),
+          // ),
 
           // Main content
           SafeArea(
@@ -405,11 +410,11 @@ class _MainPageState extends State<MainPage> {
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         Container(
-          decoration: const BoxDecoration(
-            color: Color(0x99FFFFFF),
+          decoration: BoxDecoration(
+            color: const Color(0x99FFFFFF),
             borderRadius: BorderRadius.all(Radius.circular(14)),
-            border: Border.all(color: Color(0x66FFFFFF), width: 1),
-            boxShadow: [BoxShadow(color: Color(0x0A000000), blurRadius: 8, offset: Offset(0, 2))],
+            border: Border.all(color: const Color(0x66FFFFFF), width: 1),
+            boxShadow: [BoxShadow(color: const Color(0x0A000000), blurRadius: 8, offset: Offset(0, 2))],
           ),
           child: Row(
             children: [

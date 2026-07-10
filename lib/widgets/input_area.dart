@@ -1,12 +1,15 @@
+import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:provider/provider.dart';
 import '../../models/models.dart';
+import '../../providers/app_provider.dart';
 import '../../theme/app_theme.dart';
 
 /// Image input area: prompt textarea + image upload (img2img mode)
 class InputArea extends StatefulWidget {
-  final Function({String prompt, String? imageUrl, String? localImagePath}) onGenerate;
+  final Future<void> Function({required String prompt, String? imageUrl, String? localImagePath}) onGenerate;
   const InputArea({super.key, required this.onGenerate});
 
   @override
@@ -62,13 +65,15 @@ class _InputAreaState extends State<InputArea> {
     if (_loading || !_canGenerate) return;
     setState(() => _loading = true);
     try {
-      widget.onGenerate(
+      await widget.onGenerate(
         prompt: _promptController.text.trim(),
         imageUrl: _urlController.text.trim().isEmpty ? null : _urlController.text.trim(),
         localImagePath: _localImagePath,
       );
+    } catch (e) {
+      // ignore
     } finally {
-      setState(() => _loading = false);
+      if (mounted) setState(() => _loading = false);
     }
   }
 
@@ -154,8 +159,6 @@ class _InputAreaState extends State<InputArea> {
                     File(_localImagePath!),
                     height: 200,
                     fit: BoxFit.contain,
-                    color: Colors.transparent,
-                    colorBlendMode: BlendMode.normal,
                   ),
                 ),
                 Positioned(

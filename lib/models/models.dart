@@ -113,7 +113,7 @@ class VideoPollResponse {
   bool get isCompleted => status == 'completed' || remixedFromVideoId != null;
   bool get isFailed => status == 'failed' || error != null;
   factory VideoPollResponse.fromJson(Map<String, dynamic> json) => VideoPollResponse(
-    progress: json['progress'] as num?,
+    progress: (json['progress'] as num?)?.toDouble(),
     status: json['status'] as String?,
     videoUrl: json['video_url'] as String?,
     remixedFromVideoId: json['remixed_from_video_id'] as String?,

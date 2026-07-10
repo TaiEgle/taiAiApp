@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'package:dio/dio.dart';
+import 'package:flutter/material.dart';
 import '../models/models.dart';
 
 /// Video generation API service with async polling
@@ -97,7 +99,7 @@ class VideoService {
     required String apiKey,
     required String videoBaseUrl,
     required VoidCallback onComplete,
-    required VoidCallback<VideoPollResponse?> onError,
+    required Function(VideoPollResponse?) onError,
     Duration interval = const Duration(seconds: 5),
   }) {
     state = state.copyWith(isPolling: true, progress: 0, status: '排队中...');
@@ -119,7 +121,7 @@ class VideoService {
 
         if (response.statusCode != 200) {
           if (response.statusCode == 401) {
-            onError.call();
+            onError(null);
             stopPolling();
             return;
           }

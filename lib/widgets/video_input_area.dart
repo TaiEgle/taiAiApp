@@ -1,14 +1,16 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:provider/provider.dart';
 import '../../models/models.dart';
+import '../../providers/app_provider.dart';
 import '../../theme/app_theme.dart';
 
-typedef VideoGenerateCallback = void Function({
-  String prompt,
-  String aspectRatio,
-  String duration,
-  int frameRate,
+typedef VideoGenerateCallback = Future<void> Function({
+  required String prompt,
+  required String aspectRatio,
+  required String duration,
+  required int frameRate,
   int? seed,
   String? negativePrompt,
   String? singleImagePath,
@@ -73,7 +75,7 @@ class _VideoInputAreaState extends State<VideoInputArea> {
 
   Future<void> _pickMultiImages() async {
     final picker = ImagePicker();
-    final picked = await picker.pickImages(source: ImageSource.gallery, maxImages: 5);
+    final picked = await picker.pickMultiImage(limit: 5);
     if (picked != null) {
       setState(() {
         _multiImagePaths.clear();
@@ -90,7 +92,7 @@ class _VideoInputAreaState extends State<VideoInputArea> {
     if (_loading || !_canGenerate) return;
     setState(() => _loading = true);
     try {
-      widget.onGenerate(
+      await widget.onGenerate(
         prompt: _promptController.text.trim(),
         aspectRatio: _selectedAspectRatio,
         duration: _selectedDuration,
@@ -98,11 +100,13 @@ class _VideoInputAreaState extends State<VideoInputArea> {
         seed: _seed,
         negativePrompt: _negativePromptController.text.trim().isEmpty ? null : _negativePromptController.text.trim(),
         singleImagePath: _singleImagePath,
-        singleImageUrl: _singleImageUrl?.isEmpty ? null : _singleImageUrl,
+        singleImageUrl: _singleImageUrl == '' ? null : _singleImageUrl,
         imagePaths: _multiImagePaths.isNotEmpty ? List.from(_multiImagePaths) : null,
       );
+    } catch (e) {
+      // ignore
     } finally {
-      setState(() => _loading = false);
+      if (mounted) setState(() => _loading = false);
     }
   }
 
@@ -369,7 +373,7 @@ class _VideoInputAreaState extends State<VideoInputArea> {
     );
   }
 
-  Widget _buildDropdown<String>(String label, String value, List<String> items, ValueChanged<String?> onChanged) {
+  Widget _buildDropdown(String label, String value, List<String> items, ValueChanged<String?> onChanged) {
     return Row(
       children: [
         SizedBox(

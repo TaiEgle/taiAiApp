@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/models.dart';
@@ -136,7 +137,10 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  void toggleConfig() => _configVisible = !_configVisible;
+  void toggleConfig() {
+    _configVisible = !_configVisible;
+    notifyListeners();
+  }
 
   // Debounced save timer
   Timer? _saveTimer;
